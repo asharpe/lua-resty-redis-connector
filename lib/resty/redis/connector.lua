@@ -133,7 +133,7 @@ local mt = { __index = _M }
 local function parse_dsn(params)
     local url = params.url
     if url and url ~= "" then
-        local url_pattern = [[^(?:(redis|sentinel)://)(?:([^@]*)@)?([^:/]+)(?::(\d+|[msa]+))/?(.*)$]]
+        local url_pattern = [[^(?:(unix|redis|sentinel)://)(?:([^@]*)@)?(([^:/]+)(?::(\d+|[msa]+)))?/?(\d|.*?(/(\d))?)?$]]
 
         local m, err = ngx_re_match(url, url_pattern, "oj")
         if not m then
@@ -146,6 +146,8 @@ local function parse_dsn(params)
             fields = { "password", "host", "port", "db" }
         elseif m[1] == "sentinel" then
             fields = { "password", "master_name", "role", "db" }
+        elseif m[1] == "unix" then
+            fields = { [5] = "path", [7] = "db" }
         end
 
         -- password may not be present
@@ -155,10 +157,14 @@ local function parse_dsn(params)
 
         local parsed_params = {}
 
-        for i,v in ipairs(fields) do
+        -- using pairs() because fields might be sparse
+        for i,v in pairs(fields) do
             parsed_params[v] = m[i + 1]
             if v == "role" then
                 parsed_params[v] = roles[parsed_params[v]]
+            end
+            if v == "path" then
+                parsed_params[v] = "unix:/" .. parsed_params[v]
             end
         end
 
